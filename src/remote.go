@@ -18,17 +18,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"code.google.com/p/goauth2/oauth"
 	"github.com/odeke-em/drive/config"
 	drive "github.com/odeke-em/google-api-go-client/drive/v2"
+	"golang.org/x/oauth2"
+)
+
+var (
+	tokenMu = &sync.Mutex{}
 )
 
 const (
@@ -109,14 +113,17 @@ func mimeTypeFromExt(ext string) string {
 }
 
 type Remote struct {
-	transport *oauth.Transport
-	service   *drive.Service
+	config  *oauth2.Config
+	service *drive.Service
 }
 
 func NewRemoteContext(context *config.Context) *Remote {
-	transport := newTransport(context)
-	service, _ := drive.New(transport.Client())
-	return &Remote{service: service, transport: transport}
+	config := newAuthConfig(context)
+	tokSourcer := newTokenSource(context)
+	token, err := tokSource.Token(context, nil)
+	client := config.Client(oauth2.NoContext, token)
+	service, _ := drive.New(client)
+	return &Remote{service: service, config: config}
 }
 
 func hasExportLinks(f *File) bool {
@@ -178,14 +185,14 @@ func (r *Remote) change(changeId string) (*drive.Change, error) {
 }
 
 func RetrieveRefreshToken(context *config.Context) (string, error) {
-	transport := newTransport(context)
-	url := transport.Config.AuthCodeURL("")
+	config := newAuthConfig(context)
+	url := config.AuthCodeURL("", oauth2.AccessTypeOffline)
 	fmt.Println("Visit this URL to get an authorization code")
 	fmt.Println(url)
 	fmt.Print("Paste the authorization code: ")
 	var code string
 	fmt.Scanln(&code)
-	token, err := transport.Exchange(code)
+	token, err := config.Exchange(oauth2.NoContext, code)
 	if err != nil {
 		return "", err
 	}
@@ -356,7 +363,10 @@ func (r *Remote) Download(id string, exportURL string) (io.ReadCloser, error) {
 	} else {
 		url = exportURL
 	}
-	resp, err := r.transport.Client().Get(url)
+
+	tokSource := r.config.Token.Token()
+	token, err := tokSource.Token(context, nil)
+	resp, err := r.config.Client(oauth2.NoContext, token).Get(url)
 	if err != nil || resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return resp.Body, err
 	}
@@ -617,25 +627,39 @@ func (r *Remote) findByPathTrashed(parentId string, p []string) (file *File, err
 	return r.findByPathRecvRaw(parentId, p, true)
 }
 
-func newAuthConfig(context *config.Context) *oauth.Config {
-	return &oauth.Config{
-		ClientId:     context.ClientId,
+func newAuthConfig(context *config.Context) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     context.ClientId,
 		ClientSecret: context.ClientSecret,
-		AuthURL:      GoogleOAuth2AuthURL,
-		TokenURL:     GoogleOAuth2TokenURL,
 		RedirectURL:  RedirectURL,
-		AccessType:   AccessType,
-		Scope:        DriveScope,
+		Scopes:       []string{DriveScope},
+		// AccessType:   AccessType,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  GoogleOAuth2AuthURL,
+			TokenURL: GoogleOAuth2TokenURL,
+		},
 	}
 }
 
-func newTransport(context *config.Context) *oauth.Transport {
-	return &oauth.Transport{
-		Config:    newAuthConfig(context),
-		Transport: http.DefaultTransport,
-		Token: &oauth.Token{
-			RefreshToken: context.RefreshToken,
-			Expiry:       time.Now(),
-		},
+func newToken(ctx *config.Context) *oauth2.Token {
+	return &oauth2.Token{
+		RefreshToken: ctx.RefreshToken,
+		Expiry:       time.Now(),
+	}
+}
+
+func tokenSourcer(ctx *config.Context, t *oauth2.Token) *oauth2.Token {
+	if t != nil && t.Valid() {
+		return t
+	}
+	return newToken(ctx)
+}
+
+func newTokenSource(ctx *config.Context) *oauth2.TokenSource {
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+
+	return &oauth2.TokenSource{
+		Token: tokenSourcer,
 	}
 }
