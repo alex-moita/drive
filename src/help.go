@@ -84,12 +84,14 @@ const (
 	DescIgnoreChecksum = "avoids computation of checksums as a final check." +
 		"\nUse cases may include:\n\t* when you are low on bandwidth e.g SSHFS." +
 		"\n\t* Are on a low power device"
-	DescIgnoreConflict = "turns off the conflict resolution safety"
+	DescIgnoreConflict    = "turns off the conflict resolution safety"
+	DescIgnoreNameClashes = "ignore name clashes"
 )
 
 const (
-	CLIOptionIgnoreChecksum = "ignore-checksum"
-	CLIOptionIgnoreConflict = "ignore-conflict"
+	CLIOptionIgnoreChecksum    = "ignore-checksum"
+	CLIOptionIgnoreConflict    = "ignore-conflict"
+	CLIOptionIgnoreNameClashes = "ignore-clashes"
 )
 
 var skipChecksumNote = fmt.Sprintf(

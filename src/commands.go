@@ -77,8 +77,9 @@ type Options struct {
 	Piped bool
 	// Quiet when set toggles only logging of errors to stderrs as
 	// well as reading from stdin in this case stdout is not logged to
-	Quiet       bool
-	StdoutIsTty bool
+	Quiet             bool
+	StdoutIsTty       bool
+	IgnoreNameClashes bool
 }
 
 type Commands struct {

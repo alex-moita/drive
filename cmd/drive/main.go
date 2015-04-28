@@ -261,18 +261,19 @@ func (cmd *statCmd) Run(args []string) {
 }
 
 type pullCmd struct {
-	exportsDir     *string
-	export         *string
-	force          *bool
-	hidden         *bool
-	matches        *bool
-	noPrompt       *bool
-	noClobber      *bool
-	recursive      *bool
-	ignoreChecksum *bool
-	ignoreConflict *bool
-	piped          *bool
-	quiet          *bool
+	exportsDir        *string
+	export            *string
+	force             *bool
+	hidden            *bool
+	matches           *bool
+	noPrompt          *bool
+	noClobber         *bool
+	recursive         *bool
+	ignoreChecksum    *bool
+	ignoreConflict    *bool
+	piped             *bool
+	quiet             *bool
+	ignoreNameClashes *bool
 }
 
 func (cmd *pullCmd) Flags(fs *flag.FlagSet) *flag.FlagSet {
@@ -285,6 +286,7 @@ func (cmd *pullCmd) Flags(fs *flag.FlagSet) *flag.FlagSet {
 	cmd.force = fs.Bool("force", false, "forces a pull even if no changes present")
 	cmd.ignoreChecksum = fs.Bool(drive.CLIOptionIgnoreChecksum, false, drive.DescIgnoreChecksum)
 	cmd.ignoreConflict = fs.Bool(drive.CLIOptionIgnoreConflict, false, drive.DescIgnoreConflict)
+	cmd.ignoreNameClashes = fs.Bool(drive.CLIOptionIgnoreNameClashes, false, drive.DescIgnoreNameClashes)
 	cmd.exportsDir = fs.String("export-dir", "", "directory to place exports")
 	cmd.matches = fs.Bool("matches", false, "search by prefix")
 	cmd.piped = fs.Bool("piped", false, "if true, read content from stdin")
@@ -311,19 +313,20 @@ func (cmd *pullCmd) Run(args []string) {
 	exports := drive.NonEmptyStrings(strings.Split(*cmd.export, ",")...)
 
 	options := &drive.Options{
-		Exports:        uniqOrderedStr(exports),
-		ExportsDir:     strings.Trim(*cmd.exportsDir, " "),
-		Force:          *cmd.force,
-		Hidden:         *cmd.hidden,
-		IgnoreChecksum: *cmd.ignoreChecksum,
-		IgnoreConflict: *cmd.ignoreConflict,
-		NoPrompt:       *cmd.noPrompt,
-		NoClobber:      *cmd.noClobber,
-		Path:           path,
-		Recursive:      *cmd.recursive,
-		Sources:        sources,
-		Piped:          *cmd.piped,
-		Quiet:          *cmd.quiet,
+		Exports:           uniqOrderedStr(exports),
+		ExportsDir:        strings.Trim(*cmd.exportsDir, " "),
+		Force:             *cmd.force,
+		Hidden:            *cmd.hidden,
+		IgnoreChecksum:    *cmd.ignoreChecksum,
+		IgnoreConflict:    *cmd.ignoreConflict,
+		NoPrompt:          *cmd.noPrompt,
+		NoClobber:         *cmd.noClobber,
+		Path:              path,
+		Recursive:         *cmd.recursive,
+		Sources:           sources,
+		Piped:             *cmd.piped,
+		Quiet:             *cmd.quiet,
+		IgnoreNameClashes: *cmd.ignoreNameClashes,
 	}
 
 	if *cmd.matches {
@@ -348,11 +351,12 @@ type pushCmd struct {
 	convert *bool
 	// ocr when set indicates that Optical Character Recognition should be
 	// attempted on .[gif, jpg, pdf, png] uploads
-	ocr            *bool
-	ignoreChecksum *bool
-	ignoreConflict *bool
-	quiet          *bool
-	coercedMimeKey *string
+	ocr               *bool
+	ignoreChecksum    *bool
+	ignoreConflict    *bool
+	ignoreNameClashes *bool
+	quiet             *bool
+	coercedMimeKey    *string
 }
 
 func (cmd *pushCmd) Flags(fs *flag.FlagSet) *flag.FlagSet {
@@ -369,6 +373,7 @@ func (cmd *pushCmd) Flags(fs *flag.FlagSet) *flag.FlagSet {
 	cmd.ignoreConflict = fs.Bool(drive.CLIOptionIgnoreConflict, false, drive.DescIgnoreConflict)
 	cmd.quiet = fs.Bool(drive.QuietKey, false, "if set, do not log anything but errors")
 	cmd.coercedMimeKey = fs.String(drive.CoercedMimeKeyKey, "", "the mimeType you are trying to coerce this file to be")
+	cmd.ignoreNameClashes = fs.Bool(drive.CLIOptionIgnoreNameClashes, false, drive.DescIgnoreNameClashes)
 	return fs
 }
 
@@ -441,17 +446,18 @@ func (cmd *pushCmd) createPushOptions() *drive.Options {
 	}
 
 	return &drive.Options{
-		Force:          *cmd.force,
-		Hidden:         *cmd.hidden,
-		IgnoreChecksum: *cmd.ignoreChecksum,
-		IgnoreConflict: *cmd.ignoreConflict,
-		NoClobber:      *cmd.noClobber,
-		NoPrompt:       *cmd.noPrompt,
-		Recursive:      *cmd.recursive,
-		Piped:          *cmd.piped,
-		Quiet:          *cmd.quiet,
-		Meta:           &meta,
-		TypeMask:       mask,
+		Force:             *cmd.force,
+		Hidden:            *cmd.hidden,
+		IgnoreChecksum:    *cmd.ignoreChecksum,
+		IgnoreConflict:    *cmd.ignoreConflict,
+		NoClobber:         *cmd.noClobber,
+		NoPrompt:          *cmd.noPrompt,
+		Recursive:         *cmd.recursive,
+		Piped:             *cmd.piped,
+		Quiet:             *cmd.quiet,
+		Meta:              &meta,
+		TypeMask:          mask,
+		IgnoreNameClashes: *cmd.ignoreNameClashes,
 	}
 }
 

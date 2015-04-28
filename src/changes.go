@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/odeke-em/drive/config"
+	"github.com/odeke-em/dts/ascii-trie"
 	"github.com/odeke-em/log"
 )
 
@@ -248,7 +249,15 @@ func (g *Commands) resolveChangeListRecv(
 		remoteChildren = make(chan *File)
 		close(remoteChildren)
 	}
-	dirlist := merge(remoteChildren, localChildren)
+	dirlist, clashes := merge(remoteChildren, localChildren)
+
+	if !g.opts.IgnoreNameClashes && len(clashes) >= 1 {
+		for dup := range clashes {
+			g.log.LogErrf("x %v", dup.Name)
+		}
+		err = fmt.Errorf("clashes detected")
+		return
+	}
 
 	// Arbitrary value. TODO: Calibrate or calculate this value
 	chunkSize := 100
@@ -290,27 +299,48 @@ func (g *Commands) resolveChangeListRecv(
 	return cl, nil
 }
 
-func merge(remotes, locals chan *File) (merged []*dirList) {
-	localMap := map[string]*File{}
+func merge(remotes, locals chan *File) (merged []*dirList, clashesChan chan *File) {
+	localsTrie := asciitrie.New()
+	remotesTrie := asciitrie.New()
+
+	clashesChan = make(chan *File)
 
 	// TODO: Add support for FileSystems that allow same names but different files.
 	for l := range locals {
-		localMap[l.Name] = l
+		localsTrie.Set(l.Name, l)
 	}
 
 	for r := range remotes {
 		list := &dirList{remote: r}
+
+		evicted := remotesTrie.Set(r.Name, r)
+		if evicted != nil {
+			evictedFile, ok := evicted.(*File)
+			if ok {
+				clashesChan <- evictedFile
+			}
+			continue
+		}
+
+		mem, ok := localsTrie.Get(r.Name)
 		// look for local
-		l, ok := localMap[r.Name]
 		if ok {
-			list.local = l
-			delete(localMap, r.Name)
+			l, lOk := mem.(*File)
+			if lOk {
+				list.local = l
+				localsTrie.Pop(r.Name)
+			}
 		}
 		merged = append(merged, list)
 	}
 
 	// if anything left in locals, add to the dir listing
-	for _, l := range localMap {
+	walk := localsTrie.Walk()
+	for item := range walk {
+		l, ok := item.(*File)
+		if !ok {
+			continue
+		}
 		merged = append(merged, &dirList{local: l})
 	}
 	return
